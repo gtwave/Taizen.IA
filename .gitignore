@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Secrets
+.env
+*.key
+
+# Dados pesados (vivem no HD externo, referenciados via DATA_DIR)
+data/raw/
+data/processed/
+data/chroma/
+*.gguf
+*.safetensors
+checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Material didático e de divulgação (mantidos fora do repositório público)
+docs/
+social/
