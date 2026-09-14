@@ -52,8 +52,8 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 ## Acompanhe o projeto
 
 - YouTube: canal em construção — em breve o link aqui.
-- Instagram: [em breve]
-- Site: [em breve]
+- Instagram: [instagram.com/taizen.treinamentos](https://www.instagram.com/taizen.treinamentos/)
+- Site: [taizen.tech](https://taizen.tech/)
 
 ## Como navegar
 
