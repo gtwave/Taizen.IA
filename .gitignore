@@ -26,3 +26,6 @@ Thumbs.db
 # Material didático e de divulgação (mantidos fora do repositório público)
 docs/
 social/
+
+# Experimentos locais de indexação (Fase 1)
+data/experiments/

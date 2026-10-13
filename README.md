@@ -31,7 +31,8 @@ Este repositório é o código e a arquitetura por trás desse processo. **Contr
 - **Orquestração:** framework desde o início (LangChain, evoluindo para LangGraph/CrewAI no sistema multi-agente).
 - **Vector DB:** Chroma no MVP (simples, local, sem servidor separado).
 - **Mercado-alvo do caso de uso:** ações da B3 (Brasil), dados via brapi.dev.
-- **Embeddings:** modelo local leve (`all-MiniLM-L6-v2` via sentence-transformers) rodando em CPU — não consome orçamento de API.
+- **Embeddings:** modelo local multilíngue (`intfloat/multilingual-e5-small` via sentence-transformers) rodando em CPU — não consome orçamento de API. (Decisão revista na Fase 1: o `all-MiniLM-L6-v2` previsto inicialmente é focado em inglês e rende mal em português.)
+- **Corpus da Fase 1:** notícias financeiras coletadas por feeds RSS públicos, só localmente, com respeito ao `robots.txt` — o conteúdo das notícias **não** é redistribuído neste repositório (veja a seção "Política de dados" do `CONTRIBUTING.md`).
 
 Discussão e mudanças de decisão acontecem via issues/PRs — proponha alternativas com a justificativa de trade-off.
 
@@ -43,11 +44,31 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 ├── CONTRIBUTING.md  como propor mudanças, abrir issues e enviar PRs
 ├── LICENSE          MIT
 ├── src/             código do projeto, evoluindo fase a fase
+│   ├── agent.py     Fase 0 — function calling com cotação ao vivo
+│   ├── agent_rag.py Fase 1 — agente LangChain: notícias (RAG) + cotação
+│   ├── rag/         Fase 1 — coleta, chunking, embeddings, Chroma, recuperação e avaliação
+│   └── tools/       ferramentas expostas ao agente (get_stock_quote, search_news)
+├── tests/           testes sem rede e sem API paga (mocks e embeddings falsos)
 ├── infra/           docker-compose e configs de deploy na VPS
-└── data/            apenas amostras leves — dados pesados ficam fora do repositório (ver src/README ou infra/)
+└── data/            dados locais (ignorados pelo Git); os pesados podem ficar em DATA_DIR (HD externo)
 ```
 
 > Material didático (teoria/exercícios de cada fase) e roteiros de divulgação em redes sociais são produzidos em paralelo, mas não fazem parte deste repositório público — aqui fica o código e a arquitetura.
+
+## Início rápido (Fase 1)
+
+```bash
+python -m venv .venv && .venv/Scripts/activate        # Windows; no Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env                                  # preencha ANTHROPIC_API_KEY (só o agente usa a API paga)
+
+python -m src.rag.ingest                              # coleta notícias dos feeds RSS (local, gratuito)
+python -m src.rag.index                               # chunking + embeddings locais + índice Chroma
+python -m src.rag.search "juros sobre capital próprio do Santander"   # busca híbrida, sem LLM
+python src/agent_rag.py "O que saiu de notícia sobre a Vale e como está a cotação?"   # usa a API paga
+
+python -m unittest discover -s tests -t .             # 20+ testes, sem rede e sem custo
+```
 
 ## Acompanhe o projeto
 
