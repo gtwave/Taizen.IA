@@ -7,6 +7,8 @@ para não repetir as palavras exatas do trecho.
 
 Métricas (média sobre as perguntas): Hit@k (algum chunk relevante entre os k primeiros), Hit@1 e MRR.
 
+Atenção: as perguntas foram escritas para o acervo coletado em 13/10/2026; com outro acervo, adapte o GOLDEN.
+
 Uso:  python -m src.rag.evaluate [--k 5] [--ablate]
 """
 
