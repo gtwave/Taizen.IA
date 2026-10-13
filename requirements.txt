@@ -1,3 +1,16 @@
+# Fase 0 — function calling
 anthropic>=0.40.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+
+# Fase 1 — RAG com LangChain, Chroma e embeddings locais
+langchain>=1.0
+langchain-anthropic>=1.0
+langchain-chroma>=1.0
+langchain-text-splitters>=1.0
+langgraph>=1.0
+chromadb>=1.0
+sentence-transformers>=3.0
+feedparser>=6.0
+rank-bm25>=0.2.2
+beautifulsoup4>=4.12
