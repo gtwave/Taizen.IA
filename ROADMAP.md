@@ -23,7 +23,8 @@ Cada fase entrega três coisas: (1) incremento funcional no sistema, (2) materia
 ## Fase 2 — Sistema Multi-Agente (Dias 13-19 · Dev 18h · Estudo 12h)
 **Skills:** AI Agents / Agentic Workflows, Orquestradores (LangGraph e/ou CrewAI), Tool Use avançado.
 **Entregável funcional:** comitê de agentes — Analista de Dados, Analista de Risco, Gestor de Carteira — que colaboram para gerar uma sugestão de carteira recomendada a partir de um conjunto de ações da B3.
-**Stack:** LangGraph ou CrewAI (sobre a base LangChain da Fase 1).
+**Stack:** LangGraph (decisão da Fase 2), numpy, pydantic; dados de preço da brapi.dev.
+**Status:** implementada na branch `fase-02` (comitê em LangGraph com fan-out de analistas, gestor, validador e fallback; cérebro de regras determinístico + LLM limitado; backtest walk-forward; 47 testes).
 
 ## Fase 3 — LLMOps & Observabilidade (Dias 20-25 · Dev 14h · Estudo 10h)
 **Skills:** LLMOps/GenAIOps, avaliação de qualidade (LangSmith/Phoenix/DeepEval), Semantic Caching, Token Economics & FinOps.
