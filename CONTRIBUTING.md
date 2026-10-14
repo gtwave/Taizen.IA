@@ -23,3 +23,10 @@ Este é um projeto construído em público, evoluindo por fases documentadas em 
 ## Escopo fora deste repositório
 
 Material didático (teoria/exercícios por fase) e roteiros de divulgação em redes sociais são produzidos à parte e não fazem parte deste repositório — aqui o foco é código e arquitetura.
+
+## Política de dados (Fase 1)
+
+- O corpus de notícias é coletado **localmente** por feeds RSS públicos, respeitando o `robots.txt`, com `User-Agent` identificado e intervalo entre requisições. O código não faz raspagem de HTML.
+- O conteúdo das notícias pertence aos veículos de origem: **não** o publique neste repositório (as pastas de dados já são ignoradas pelo Git). Os testes usam apenas textos sintéticos.
+- Ao adicionar um feed, confira os termos de uso do site e mantenha a coleta em ritmo moderado.
+- Prefira, sempre que possível, fontes com licença aberta ou dados oficiais (por exemplo, dados abertos da CVM).

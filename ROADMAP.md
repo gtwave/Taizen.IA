@@ -17,7 +17,8 @@ Cada fase entrega três coisas: (1) incremento funcional no sistema, (2) materia
 ## Fase 1 — MVP RAG + Agente Único (Dias 3-12 · Dev 22h · Estudo 14h)
 **Skills:** Vector Databases, Embeddings, Chunking, RAG, Hybrid Search.
 **Entregável funcional:** pipeline de ingestão (notícias/relatórios financeiros) → chunking → embeddings locais → Chroma → agente único (LangChain) que responde perguntas sobre ações combinando RAG + function calling em tempo real.
-**Stack:** LangChain, Chroma, sentence-transformers (embeddings locais), brapi.dev.
+**Stack:** LangChain 1.x (`create_agent`), Chroma, `multilingual-e5-small` via sentence-transformers (embeddings locais, CPU), notícias por feeds RSS, brapi.dev.
+**Status:** implementada na branch `fase-01` (coleta, chunking, índice, busca híbrida, avaliação e agente RAG).
 
 ## Fase 2 — Sistema Multi-Agente (Dias 13-19 · Dev 18h · Estudo 12h)
 **Skills:** AI Agents / Agentic Workflows, Orquestradores (LangGraph e/ou CrewAI), Tool Use avançado.
