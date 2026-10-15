@@ -47,6 +47,7 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 │   ├── agent.py     Fase 0 — function calling com cotação ao vivo
 │   ├── agent_rag.py Fase 1 — agente LangChain: notícias (RAG) + cotação
 │   ├── rag/         Fase 1 — coleta, chunking, embeddings, Chroma, recuperação e avaliação
+│   ├── committee/   Fase 2 — comitê multiagente em LangGraph: dados, risco, gestor, validador, backtest
 │   └── tools/       ferramentas expostas ao agente (get_stock_quote, search_news)
 ├── tests/           testes sem rede e sem API paga (mocks e embeddings falsos)
 ├── infra/           docker-compose e configs de deploy na VPS
@@ -55,7 +56,7 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 
 > Material didático (teoria/exercícios de cada fase) e roteiros de divulgação em redes sociais são produzidos em paralelo, mas não fazem parte deste repositório público — aqui fica o código e a arquitetura.
 
-## Início rápido (Fase 1)
+## Início rápido (Fases 1 e 2)
 
 ```bash
 python -m venv .venv && .venv/Scripts/activate        # Windows; no Linux/macOS: source .venv/bin/activate
@@ -67,8 +68,21 @@ python -m src.rag.index                               # chunking + embeddings lo
 python -m src.rag.search "juros sobre capital próprio do Santander"   # busca híbrida, sem LLM
 python src/agent_rag.py "O que saiu de notícia sobre a Vale e como está a cotação?"   # usa a API paga
 
-python -m unittest discover -s tests -t .             # 20+ testes, sem rede e sem custo
+python -m unittest discover -s tests -t .             # 47 testes, sem rede e sem custo
 ```
+
+### Comitê de carteira (Fase 2)
+
+```bash
+python -m src.committee.run --profile moderado        # comitê de regras: gratuito, sem API paga
+python -m src.committee.run --profile conservador --no-save
+python -m src.committee.backtest                      # backtest walk-forward vs. igual peso e vol. inversa
+python -m src.committee.run --profile moderado --brain llm   # LLM com limites (usa a API paga)
+```
+
+- **Dados de mercado:** a brapi.dev responde sem token só para `PETR4`, `VALE3`, `ITUB4` e `MGLU3` (o universo padrão). Para mais ações (BBDC4, BBAS3, ABEV3, WEGE3, SUZB3, RENT3) e índices, crie um token gratuito na brapi.dev e defina `BRAPI_TOKEN` no `.env`.
+- **Princípio de projeto:** o LLM influencia, o código garante — pesos finais passam por um validador (soma 100%, tetos, vetos de risco, desvio máximo de 15 p.p. da linha de base) e, se o LLM falhar, há fallback determinístico.
+- **Aviso:** projeto educacional. As carteiras geradas **não são recomendação de investimento**; backtests não garantem resultados futuros.
 
 ## Acompanhe o projeto
 

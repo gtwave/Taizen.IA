@@ -14,3 +14,6 @@ sentence-transformers>=3.0
 feedparser>=6.0
 rank-bm25>=0.2.2
 beautifulsoup4>=4.12
+
+# Fase 2 — comitê de agentes (numpy já vem como dependência, mas é usado diretamente)
+numpy>=1.26
