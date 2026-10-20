@@ -80,11 +80,17 @@ class TestAllocation(unittest.TestCase):
         self.assertGreater(w[0], w[1])
         self.assertGreater(w[1], w[3])
 
-    def test_veto_gives_zero_weight_unless_it_breaks_min_positions(self):
+    def test_veto_is_a_hard_rule_even_when_it_breaks_min_positions(self):
         w = allocation.allocate(self.vols, np.zeros(4), PROFILES["moderado"], np.array([False, False, False, True]))
         self.assertEqual(w[3], 0.0)
+        # 3 vetados, mínimo de 3 posições: a carteira concentra no único elegível em vez de desfazer o veto
         w2 = allocation.allocate(self.vols, np.zeros(4), PROFILES["moderado"], np.array([True, True, True, False]))
-        self.assertGreaterEqual((w2 > 0).sum(), PROFILES["moderado"].min_positions)
+        self.assertEqual(list(w2 > 0), [False, False, False, True])
+        self.assertAlmostEqual(w2.sum(), 1.0)
+
+    def test_all_vetoed_raises(self):
+        with self.assertRaises(ValueError):
+            allocation.allocate(self.vols, np.zeros(4), PROFILES["moderado"], np.ones(4, dtype=bool))
 
     def test_infeasible_cap_raises(self):
         with self.assertRaises(ValueError):

@@ -17,6 +17,7 @@ from src.committee import metrics
 from src.committee.brains import MAX_DEVIATION, BrainError, RulesBrain, baseline_allocation
 from src.committee.config import DISCLAIMER, MAX_ATTEMPTS, PROFILES, Profile
 from src.committee.market import align, validate_series
+from src.observability.tracing import get_tracer
 
 
 class CommitteeState(TypedDict, total=False):
@@ -57,17 +58,21 @@ def validate_portfolio(weights: dict[str, float], tickers: list[str], profile: P
     total = sum(w.values())
     if abs(total - 1.0) > 0.005:
         errors.append(f"os pesos somam {total:.4f}, não 1,0")
+    eligible = [t for t in tickers if t not in vetoes]
+    # com poucos ativos elegíveis o teto efetivo sobe para 1/k (senão a soma 1 seria impossível)
+    max_weight = max(profile.max_weight, 1.0 / len(eligible)) if eligible else profile.max_weight
     for t, v in w.items():
-        if v > profile.max_weight + 1e-6:
-            errors.append(f"{t} tem {v:.1%}, acima do teto de {profile.max_weight:.0%}")
+        if v > max_weight + 1e-6:
+            errors.append(f"{t} tem {v:.1%}, acima do teto de {max_weight:.0%}")
         if 0.0005 < v < profile.min_weight - 1e-6:
             errors.append(f"{t} tem {v:.1%}, abaixo do piso de {profile.min_weight:.0%}")
         if t in vetoes and v > 0.0005:
             errors.append(f"{t} foi vetado pelo analista de risco e não pode ter peso")
         if abs(v - baseline.get(t, 0.0)) > MAX_DEVIATION + 1e-6:
             errors.append(f"{t} desvia {abs(v - baseline.get(t, 0.0)):.1%} da linha de base (máximo {MAX_DEVIATION:.0%})")
-    if sum(1 for v in w.values() if v > 0.0005) < profile.min_positions:
-        errors.append(f"menos de {profile.min_positions} posições")
+    min_positions = min(profile.min_positions, len(eligible))
+    if sum(1 for v in w.values() if v > 0.0005) < min_positions:
+        errors.append(f"menos de {min_positions} posições")
     return {"ok": not errors, "errors": errors}
 
 
@@ -75,9 +80,11 @@ def _timed(name: str):
     def deco(fn):
         def wrapper(state):
             t0 = time.perf_counter()
-            out = fn(state) or {}
+            with get_tracer().span(name, "node") as span:
+                out = fn(state) or {}
+                info = out.pop("_info", "")
+                span.set(info=info)
             ms = round((time.perf_counter() - t0) * 1000)
-            info = out.pop("_info", "")
             return {**out, "trace": [{"no": name, "ms": ms, "info": info}]}
         wrapper.__name__ = name
         return wrapper
@@ -139,6 +146,8 @@ def build_graph(deps: Deps):
         vols = np.array([d["summaries"][t]["volatilidade_anual"] for t in tickers])
         scores = np.array([state["views"][t]["score"] for t in tickers])
         baseline = baseline_allocation(tickers, vols, scores, profile, state["risk"]["vetoes"])
+        if len(state["risk"]["vetoes"]) >= len(tickers):
+            raise RuntimeError("todos os ativos foram vetados pelo analista de risco: não há carteira possível para este perfil")
         feedback = (state.get("validation") or {}).get("errors")
         attempts = state.get("attempts", 0) + 1
         try:
@@ -163,6 +172,10 @@ def build_graph(deps: Deps):
     @_timed("fallback")
     def fallback(state: CommitteeState):
         prop = {"weights": dict(state["baseline"]), "rationale": "carteira de linha de base (determinística): a proposta do gestor não passou na validação."}
+        # o fallback também é validado: nunca se entrega uma carteira que viole as restrições
+        check = validate_portfolio(prop["weights"], state["data"]["tickers"], PROFILES[state["profile"]], state["risk"]["vetoes"], state["baseline"])
+        if not check["ok"]:
+            raise RuntimeError(f"a linha de base também viola as restrições: {check['errors']}")
         return {"proposal": prop, "validation": {"ok": True, "errors": []},
                 "notes": [f"fallback após {state.get('attempts', 0)} tentativa(s) do gestor: {state['validation']['errors']}"], "_info": "linha de base"}
 
@@ -173,12 +186,17 @@ def build_graph(deps: Deps):
         w = w / w.sum()
         cov = np.array(d["cov"])
         rc = metrics.risk_contributions(w, cov)
+        notes = list(state.get("notes", []))
+        eligible = len(tickers) - len(state["risk"]["vetoes"])
+        if eligible < PROFILES[state["profile"]].min_positions:
+            notes.append(f"diversificação reduzida: só {eligible} ativo(s) não vetado(s), abaixo do mínimo de "
+                         f"{PROFILES[state['profile']].min_positions} posições do perfil; o veto de risco prevalece.")
         rows = [{"ticker": t, "peso": round(float(w[i]), 4), "stance": state["views"][t]["stance"], "score": state["views"][t]["score"],
                  "volatilidade": d["summaries"][t]["volatilidade_anual"], "drawdown": d["summaries"][t]["drawdown_maximo"],
                  "contribuicao_risco": round(float(rc[i]), 4), "justificativa": state["views"][t]["rationale"]} for i, t in enumerate(tickers)]
         report = {"perfil": state["profile"], "carteira": rows, "volatilidade_carteira": round(metrics.portfolio_vol(w, cov), 4),
                   "razao_diversificacao": round(metrics.diversification_ratio(w, cov), 3), "racional_gestor": state["proposal"]["rationale"],
-                  "alertas_risco": state["risk"]["flags"], "notas": state.get("notes", []), "aviso": DISCLAIMER}
+                  "alertas_risco": state["risk"]["flags"], "notas": notes, "aviso": DISCLAIMER}
         return {"report": report, "_info": f"volatilidade da carteira {report['volatilidade_carteira']:.1%}"}
 
     g = StateGraph(CommitteeState)

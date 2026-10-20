@@ -107,8 +107,23 @@ class RulesBrain:
 
 
 # ----------------------------------------------------------------------------- LLM
-def _ask(llm, system: str, user: str, schema, tries: int = 2):
-    """Chama o LLM, valida a saída com Pydantic e reenvia o erro ao modelo se vier inválida."""
+def _model_id(llm) -> str:
+    return str(getattr(llm, "model", None) or getattr(llm, "model_name", None) or type(llm).__name__)
+
+
+def _ask(llm, system: str, user: str, schema, tries: int = 2, cache=None, accept=None):
+    """Chama o LLM, valida a saída com Pydantic e reenvia o erro ao modelo se vier inválida.
+
+    Com `cache` (ExactCache), a mesma pergunta ao mesmo modelo não é refeita — e só saídas JÁ VALIDADAS são guardadas:
+    além do esquema, `accept(saída)` (opcional) confere as regras de negócio antes de guardar."""
+    key = cache.key(_model_id(llm), system, user) if cache is not None else None
+    if key is not None:
+        cached = cache.get(key)
+        if cached is not None:
+            try:
+                return schema.model_validate_json(cached)
+            except ValidationError:
+                pass  # entrada de cache de uma versão anterior do esquema: ignora e refaz
     messages = [("system", system), ("human", user)]
     last = None
     for _ in range(tries):
@@ -116,7 +131,10 @@ def _ask(llm, system: str, user: str, schema, tries: int = 2):
         text = resp.content if isinstance(resp.content, str) else "".join(
             b.get("text", "") for b in resp.content if isinstance(b, dict))
         try:
-            return schema.model_validate(extract_json(text))
+            out = schema.model_validate(extract_json(text))
+            if key is not None and (accept is None or accept(out)):
+                cache.put(key, out.model_dump_json())
+            return out
         except (ValueError, ValidationError) as exc:
             last = exc
             messages += [("ai", text), ("human", f"A saída é inválida: {exc}. Responda de novo apenas com o JSON corrigido.")]
@@ -128,10 +146,11 @@ class LLMBrain:
 
     name = "llm"
 
-    def __init__(self, analyst_llm, manager_llm, rules: RulesBrain | None = None):
+    def __init__(self, analyst_llm, manager_llm, rules: RulesBrain | None = None, cache=None):
         self.analyst_llm = analyst_llm
         self.manager_llm = manager_llm
         self.rules = rules or RulesBrain()
+        self.cache = cache  # ExactCache opcional (respostas validadas)
 
     def data_analyst(self, dossiers, profile):
         base = self.rules.data_analyst(dossiers, profile)
@@ -140,7 +159,7 @@ class LLMBrain:
                   "Responda somente com JSON: {\"views\": [{\"ticker\": str, \"stance\": \"favoravel|neutra|cautelosa\", "
                   "\"score_adjust\": número entre -1 e 1, \"rationale\": str}]}. " + DISCLAIMER)
         out = _ask(self.analyst_llm, system, json.dumps({"dossies": dossiers, "score_quantitativo": {t: v["score"] for t, v in base.items()}},
-                                                        ensure_ascii=False), DataAnalystOutput)
+                                                        ensure_ascii=False), DataAnalystOutput, cache=self.cache)
         merged = {}
         for t, b in base.items():
             v = next((x for x in out.views if x.ticker == t), None)
@@ -156,7 +175,7 @@ class LLMBrain:
                   "aponte alertas e, se necessário, vetos (apenas tickers do universo). Responda somente com JSON: "
                   "{\"vetoes\": [str], \"flags\": [str], \"comments\": str}. " + DISCLAIMER)
         out = _ask(self.analyst_llm, system, json.dumps({"perfil": profile.name, "metricas": summaries, "correlacao": corr,
-                                                         "vetos_das_regras": base["vetoes"]}, ensure_ascii=False), RiskOutput)
+                                                         "vetos_das_regras": base["vetoes"]}, ensure_ascii=False), RiskOutput, cache=self.cache)
         vetoes = sorted(set(base["vetoes"]) | {t for t in out.vetoes if t in summaries})
         return {"vetoes": vetoes, "flags": base["flags"] + out.flags, "comments": out.comments or base["comments"]}
 
@@ -168,7 +187,11 @@ class LLMBrain:
         user = {"perfil": profile.name, "linha_de_base": baseline, "visoes": views, "risco": risk}
         if feedback:
             user["erros_da_tentativa_anterior"] = feedback
-        out = _ask(self.manager_llm, system, json.dumps(user, ensure_ascii=False), ManagerOutput)
+        def accept(out: ManagerOutput) -> bool:  # só vale guardar propostas que o validador aprovaria
+            from src.committee.graph import validate_portfolio
+            return validate_portfolio(out.weights, list(baseline), profile, risk["vetoes"], baseline)["ok"]
+
+        out = _ask(self.manager_llm, system, json.dumps(user, ensure_ascii=False), ManagerOutput, cache=self.cache, accept=accept)
         return {"weights": out.weights, "rationale": out.rationale}
 
 

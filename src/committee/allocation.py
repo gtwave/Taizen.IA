@@ -36,11 +36,10 @@ def allocate(vols: np.ndarray, scores: np.ndarray, profile: Profile, vetoed: np.
     n = len(vols)
     vetoed = np.zeros(n, dtype=bool) if vetoed is None else np.asarray(vetoed, dtype=bool)
     active = ~vetoed
-    if active.sum() < profile.min_positions:
-        # veto removeria ativos demais: mantém os de menor volatilidade para respeitar o mínimo de posições
-        order = np.argsort(vols)
-        active = np.zeros(n, dtype=bool)
-        active[order[: profile.min_positions]] = True
+    if not active.any():
+        raise ValueError("todos os ativos do universo foram vetados: não há carteira possível")
+    # O veto de risco é regra RÍGIDA; o mínimo de posições é flexível. Se os vetos deixam menos ativos que o mínimo do
+    # perfil, a carteira fica menos diversificada (o teto sobe para 1/k) em vez de desfazer o veto.
     raw = np.zeros(n)
     raw[active] = (1.0 / vols[active]) * np.exp(profile.tilt * scores[active])
     w = np.zeros(n)
