@@ -4,6 +4,10 @@ Uso:
   python -m src.committee.run --profile moderado                 # regras determinísticas: grátis
   python -m src.committee.run --profile arrojado --news          # acrescenta manchetes do índice RAG (local, grátis)
   python -m src.committee.run --profile moderado --brain llm     # usa a API paga (modelo menor + modelo maior)
+  python -m src.committee.run --brain llm --cache                # + cache exato das respostas validadas do LLM
+
+Todo run grava traces locais em data/processed/traces (desligue com --no-trace); veja o painel com
+  python -m src.observability.report
 """
 
 import argparse
@@ -16,6 +20,11 @@ from src.committee.brains import LLMBrain, RulesBrain
 from src.committee.config import ANALYST_MODEL, MANAGER_MODEL, PORTFOLIOS_DIR, PROFILES, default_universe
 from src.committee.graph import Deps, build_graph
 from src.committee.market import load_universe
+from src.observability import pricing
+from src.observability.cache import ExactCache
+from src.observability.langchain_hook import TracingCallbackHandler
+from src.observability.report import TRACES_DIR
+from src.observability.tracing import JsonlSink, MemorySink, configure, get_tracer, read_spans
 from src.tools.stock_quote import get_stock_quote
 
 
@@ -31,14 +40,20 @@ def make_news_fn(enabled: bool, days: int = 14, k: int = 2):
     return news
 
 
-def make_brain(kind: str):
+def make_brain(kind: str, cache: ExactCache | None = None):
     if kind == "rules":
         return RulesBrain()
     from dotenv import load_dotenv
     from langchain_anthropic import ChatAnthropic
 
     load_dotenv()
-    return LLMBrain(ChatAnthropic(model=ANALYST_MODEL, max_tokens=1500), ChatAnthropic(model=MANAGER_MODEL, max_tokens=1500))
+    # FinOps: antes de qualquer chamada paga, confere o orçamento do mês nos traces já gravados (levanta BudgetExceeded)
+    status = pricing.assert_within_budget(read_spans(TRACES_DIR))
+    if status.level == "warn":
+        print(f"[orçamento] atenção: R$ {status.spent_brl:.2f} gastos de R$ {status.budget_brl:.2f} (projeção R$ {status.projected_brl:.2f})")
+    analyst = ChatAnthropic(model=ANALYST_MODEL, max_tokens=1500, callbacks=[TracingCallbackHandler(role="analista")])
+    manager = ChatAnthropic(model=MANAGER_MODEL, max_tokens=1500, callbacks=[TracingCallbackHandler(role="gestor")])
+    return LLMBrain(analyst, manager, cache=cache)
 
 
 def print_report(rep: dict, log=print) -> None:
@@ -55,26 +70,37 @@ def print_report(rep: dict, log=print) -> None:
     log(f"\n{rep['aviso']}")
 
 
-def run(profile: str, brain: str = "rules", universe: list[str] | None = None, news: bool = False, save: bool = True, log=print) -> dict:
+def run(profile: str, brain: str = "rules", universe: list[str] | None = None, news: bool = False, save: bool = True, log=print,
+        trace: bool = True, cache: bool = False, brain_obj=None) -> dict:
     universe = universe or default_universe()
     log(f"Perfil: {profile} | cérebro: {brain} | universo: {', '.join(universe)}")
+    memory = MemorySink()
+    configure([JsonlSink(TRACES_DIR), memory] if trace else [memory])
+    exact = ExactCache(TRACES_DIR.parent / "llm_cache.json") if cache else None
     deps = Deps(
         load_series=lambda tickers: load_universe(tickers, "5y", log=log),
         quote=get_stock_quote,
         news=make_news_fn(news),
-        brain=make_brain(brain),
+        brain=brain_obj or make_brain(brain, exact),
     )
     graph = build_graph(deps)
     final = None
-    for update in graph.stream({"profile": profile, "universe": universe, "attempts": 0}, stream_mode=["updates", "values"]):
-        mode, payload = update
-        if mode == "updates":
-            for node, data in payload.items():
-                tr = data.get("trace", [{}])[-1]
-                log(f"[{node}] {tr.get('ms', 0)} ms — {tr.get('info', '')}")
-        else:
-            final = payload
+    with get_tracer().span("committee.run", "chain", profile=profile, brain=brain, tickers=len(universe)) as root:
+        for update in graph.stream({"profile": profile, "universe": universe, "attempts": 0}, stream_mode=["updates", "values"]):
+            mode, payload = update
+            if mode == "updates":
+                for node, data in payload.items():
+                    tr = data.get("trace", [{}])[-1]
+                    log(f"[{node}] {tr.get('ms', 0)} ms — {tr.get('info', '')}")
+            else:
+                final = payload
+        root.set(attempts=final.get("attempts"), fallback=any("fallback" in n for n in final["report"]["notas"]))
     print_report(final["report"], log)
+    mine = [s for s in memory.spans if s["trace_id"] == root.trace_id]
+    llm = [s for s in mine if s["kind"] == "llm"]
+    log(f"\n[observabilidade] trace {root.trace_id}: {len(mine)} spans, {len(llm)} chamada(s) ao LLM, "
+        f"R$ {sum(s['attrs'].get('cost_brl') or 0 for s in llm):.4f}, {root.duration_ms:.0f} ms"
+        + (f" | gravado em {TRACES_DIR}" if trace else ""))
     if save:
         PORTFOLIOS_DIR.mkdir(parents=True, exist_ok=True)
         out = PORTFOLIOS_DIR / f"carteira_{profile}_{datetime.now(timezone.utc):%Y%m%d_%H%M}.json"
@@ -91,5 +117,7 @@ if __name__ == "__main__":
     ap.add_argument("--tickers", help="lista separada por vírgula (padrão: universo gratuito, ou o ampliado com BRAPI_TOKEN)")
     ap.add_argument("--news", action="store_true", help="inclui manchetes recuperadas do índice RAG (local)")
     ap.add_argument("--no-save", action="store_true")
+    ap.add_argument("--no-trace", action="store_true", help="não grava traces em disco")
+    ap.add_argument("--cache", action="store_true", help="cache exato das respostas validadas do LLM (só vale com --brain llm)")
     a = ap.parse_args()
-    run(a.profile, a.brain, a.tickers.split(",") if a.tickers else None, a.news, not a.no_save)
+    run(a.profile, a.brain, a.tickers.split(",") if a.tickers else None, a.news, not a.no_save, trace=not a.no_trace, cache=a.cache)

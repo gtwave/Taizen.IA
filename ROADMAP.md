@@ -29,7 +29,8 @@ Cada fase entrega três coisas: (1) incremento funcional no sistema, (2) materia
 ## Fase 3 — LLMOps & Observabilidade (Dias 20-25 · Dev 14h · Estudo 10h)
 **Skills:** LLMOps/GenAIOps, avaliação de qualidade (LangSmith/Phoenix/DeepEval), Semantic Caching, Token Economics & FinOps.
 **Entregável funcional:** instrumentação do sistema da Fase 2 com tracing, métricas de latência/custo/qualidade, cache semântico para reduzir custo de chamadas repetidas.
-**Stack:** LangSmith ou Phoenix, DeepEval.
+**Stack:** módulo local `src/observability/` (tracer próprio com modelo de dados compatível com OpenTelemetry, callback LangChain, JSONL); LangSmith/Phoenix/DeepEval estudados, não adotados (privacidade e custo).
+**Status:** implementada na branch `fase-03` (tracing, custo e orçamento mensal, cache exato e semântico com guarda, avaliação em camadas e portão de regressão com 36 cenários; corrigiu um defeito latente de vetos da Fase 2).
 
 ## Fase 4 — Governança & Segurança (Dias 26-29 · Dev 10h · Estudo 8h)
 **Skills:** Guardrails, defesa contra Prompt Injection, Data Privacy & PII Masking.

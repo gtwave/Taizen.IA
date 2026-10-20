@@ -45,6 +45,8 @@ def weights_committee(prices_window: np.ndarray, profile: Profile) -> np.ndarray
     vetoes = brain.risk_analyst(summaries, corr, profile)["vetoes"]
     vols = np.array([summaries[t]["volatilidade_anual"] for t in tickers])
     scores = np.array([views[t]["score"] for t in tickers])
+    if len(vetoes) >= n:
+        return np.zeros(n)  # tudo vetado: fica em caixa (retorno 0) até a janela mostrar ativos aceitáveis
     base = baseline_allocation(tickers, vols, scores, profile, vetoes)
     return np.array([base[t] for t in tickers])
 
@@ -65,10 +67,11 @@ def walk_forward(prices: np.ndarray, weight_fn, profile: Profile | None = None, 
         turnover += turnover_t
         end = min(t + step, T - 1)
         growth = prices[t:end + 1] / prices[t]
-        path = value * (growth @ w)
+        cash = 1.0 - w.sum()  # fração em caixa (0 quando totalmente investido)
+        path = value * (growth @ w + cash)
         equity[t:end + 1] = path
         value = path[-1]
-        w_prev = w * growth[-1] / (growth[-1] @ w)  # pesos após a deriva até o próximo rebalanceamento
+        w_prev = w * growth[-1] / (growth[-1] @ w + cash)  # pesos após a deriva até o próximo rebalanceamento
         history.append((t, w))
         t = end
     return {"equity": equity, "turnover": turnover, "weights": history}

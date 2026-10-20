@@ -25,6 +25,13 @@ Código do projeto, evoluindo fase a fase (ver `../ROADMAP.md`).
 | `committee/graph.py` | 2 | Grafo LangGraph: coletar → analistas (paralelo) → gestor → validador → (retry/fallback) → relatório |
 | `committee/run.py` | 2 | CLI do comitê (`--profile`, `--brain rules\|llm`, `--tickers`, `--no-save`) |
 | `committee/backtest.py` | 2 | Backtest walk-forward sem lookahead, com custo de transação |
+| `observability/tracing.py` | 3 | `Span`, `Tracer`, destinos (memória, JSONL), propagação de contexto e leitura dos spans |
+| `observability/langchain_hook.py` | 3 | Callback do LangChain: spans de LLM e ferramentas com tokens e custo |
+| `observability/pricing.py` | 3 | Tabela de preços (referência), custo por chamada, orçamento mensal, projeção e bloqueio |
+| `observability/cache.py` | 3 | Cache exato (saídas validadas) e semântico (guarda de tickers, TTL) |
+| `observability/report.py` | 3 | Painel de CLI: latência, tokens, custo, erros, cache e orçamento |
+| `observability/evaluate.py` | 3 | Invariantes do comitê, grounding de respostas, LLM-as-judge e portão de regressão |
+| `observability/golden.py` | 3 | Cenários dourados e modelos de chat simulados (`ScriptedChat`, `SimChat`) |
 
 Convenção planejada para as próximas fases:
 - `src/api/` — camada de API exposta pelo backend (deploy na VPS)
