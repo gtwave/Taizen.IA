@@ -48,6 +48,7 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 │   ├── agent_rag.py Fase 1 — agente LangChain: notícias (RAG) + cotação
 │   ├── rag/         Fase 1 — coleta, chunking, embeddings, Chroma, recuperação e avaliação
 │   ├── committee/   Fase 2 — comitê multiagente em LangGraph: dados, risco, gestor, validador, backtest
+│   ├── observability/ Fase 3 — tracing, custo e orçamento, caches, avaliação e portão de regressão
 │   └── tools/       ferramentas expostas ao agente (get_stock_quote, search_news)
 ├── tests/           testes sem rede e sem API paga (mocks e embeddings falsos)
 ├── infra/           docker-compose e configs de deploy na VPS
@@ -68,7 +69,7 @@ python -m src.rag.index                               # chunking + embeddings lo
 python -m src.rag.search "juros sobre capital próprio do Santander"   # busca híbrida, sem LLM
 python src/agent_rag.py "O que saiu de notícia sobre a Vale e como está a cotação?"   # usa a API paga
 
-python -m unittest discover -s tests -t .             # 47 testes, sem rede e sem custo
+python -m unittest discover -s tests -t .             # 90+ testes, sem rede e sem custo
 ```
 
 ### Comitê de carteira (Fase 2)
@@ -83,6 +84,19 @@ python -m src.committee.run --profile moderado --brain llm   # LLM com limites (
 - **Dados de mercado:** a brapi.dev responde sem token só para `PETR4`, `VALE3`, `ITUB4` e `MGLU3` (o universo padrão). Para mais ações (BBDC4, BBAS3, ABEV3, WEGE3, SUZB3, RENT3) e índices, crie um token gratuito na brapi.dev e defina `BRAPI_TOKEN` no `.env`.
 - **Princípio de projeto:** o LLM influencia, o código garante — pesos finais passam por um validador (soma 100%, tetos, vetos de risco, desvio máximo de 15 p.p. da linha de base) e, se o LLM falhar, há fallback determinístico.
 - **Aviso:** projeto educacional. As carteiras geradas **não são recomendação de investimento**; backtests não garantem resultados futuros.
+
+### Observabilidade e avaliação (Fase 3)
+
+```bash
+python -m src.committee.run --profile moderado        # já grava traces locais em data/processed/traces
+python -m src.observability.report --days 7           # painel: latência p50/p95, tokens, custo, erros, cache, orçamento
+python -m src.observability.evaluate                  # portão de regressão: 36 cenários offline (sai com código 1 se algum falhar)
+python src/agent_rag.py --cache "pergunta"            # cache semântico (perguntas parecidas reaproveitam a resposta)
+python -m src.committee.run --brain llm --cache       # cache exato de saídas validadas do LLM (usa a API paga se houver falha de cache)
+```
+
+- **Orçamento:** antes de qualquer chamada paga, o código lê os traces do mês e recusa a chamada se o gasto passar de `MONTHLY_BUDGET_BRL` (padrão R$ 50). Preços e cotação são de referência (`PRICING_JSON`, `USD_BRL`).
+- **Privacidade:** os spans guardam tamanhos e um hash do prompt, não o texto; os traces ficam em `data/` (fora do Git).
 
 ## Acompanhe o projeto
 

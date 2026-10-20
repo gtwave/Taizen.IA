@@ -93,3 +93,33 @@ class Scenario:
 def all_scenarios() -> list[Scenario]:
     return [Scenario(m, p, b) for m in ("normal", "crash", "correlated") for p in ("conservador", "moderado", "arrojado")
             for b in ("rules", "llm_good", "llm_flaky", "llm_bad")]
+
+
+# ----------------------------------------------------------------------------- versão compatível com LangChain
+from langchain_core.language_models.chat_models import BaseChatModel  # noqa: E402
+from langchain_core.outputs import ChatGeneration, ChatResult  # noqa: E402
+from pydantic import PrivateAttr  # noqa: E402
+
+
+class SimChat(BaseChatModel):
+    """O ScriptedChat como modelo de chat do LangChain: aceita callbacks (tracing), tem nome de modelo e informa tokens.
+
+    Os tokens são ESTIMADOS (caracteres/4) — servem para exercitar custo e tracing sem gastar nada."""
+
+    model: str = "claude-sonnet-5"
+    manager_mode: str = "good"
+    _script: "ScriptedChat" = PrivateAttr()
+
+    def model_post_init(self, __context) -> None:
+        self._script = ScriptedChat(self.manager_mode, self.model)
+
+    @property
+    def _llm_type(self) -> str:
+        return "sim-chat"
+
+    @property
+    def calls(self) -> int:
+        return self._script.calls
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        return ChatResult(generations=[ChatGeneration(message=self._script.invoke(messages))])
