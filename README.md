@@ -49,6 +49,7 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 │   ├── rag/         Fase 1 — coleta, chunking, embeddings, Chroma, recuperação e avaliação
 │   ├── committee/   Fase 2 — comitê multiagente em LangGraph: dados, risco, gestor, validador, backtest
 │   ├── observability/ Fase 3 — tracing, custo e orçamento, caches, avaliação e portão de regressão
+│   ├── guardrails/  Fase 4 — PII, prompt injection, guardrails de saída, política, auditoria e red team
 │   └── tools/       ferramentas expostas ao agente (get_stock_quote, search_news)
 ├── tests/           testes sem rede e sem API paga (mocks e embeddings falsos)
 ├── infra/           docker-compose e configs de deploy na VPS
@@ -69,7 +70,7 @@ python -m src.rag.index                               # chunking + embeddings lo
 python -m src.rag.search "juros sobre capital próprio do Santander"   # busca híbrida, sem LLM
 python src/agent_rag.py "O que saiu de notícia sobre a Vale e como está a cotação?"   # usa a API paga
 
-python -m unittest discover -s tests -t .             # 90+ testes, sem rede e sem custo
+python -m unittest discover -s tests -t .             # 130+ testes, sem rede e sem custo
 ```
 
 ### Comitê de carteira (Fase 2)
@@ -97,6 +98,20 @@ python -m src.committee.run --brain llm --cache       # cache exato de saídas v
 
 - **Orçamento:** antes de qualquer chamada paga, o código lê os traces do mês e recusa a chamada se o gasto passar de `MONTHLY_BUDGET_BRL` (padrão R$ 50). Preços e cotação são de referência (`PRICING_JSON`, `USD_BRL`).
 - **Privacidade:** os spans guardam tamanhos e um hash do prompt, não o texto; os traces ficam em `data/` (fora do Git).
+
+### Segurança e governança (Fase 4)
+
+```bash
+python -m src.guardrails.redteam                      # red team offline: matriz de 8 ataques x 4 configurações de defesa (sai com 1 se a defesa completa falhar)
+python -m src.guardrails.redteam --audit              # + grava as decisões em data/processed/guard_audit.jsonl
+python -m src.guardrails.report --days 7              # painel de auditoria (tipos e regras acionadas, nunca o conteúdo)
+python src/agent_rag.py --guards=monitor "pergunta"   # guardrails no agente: enforce (padrão) | monitor | off
+python -m src.committee.run --guards=enforce          # manchetes do RAG em quarentena e texto entre agentes saneado
+```
+
+- **Princípio:** tudo que entra de fora (perguntas, notícias, saídas de ferramentas, texto gerado por outro agente) é **dado**; só o código decide. Camadas: varredura/quarentena → aviso no prompt → guardrail de saída → validador da carteira → limites estruturais.
+- **Privacidade:** CPF, CNPJ (opcional), cartão, e-mail, telefone e segredos são mascarados antes de chegar ao LLM, ao cache e aos traces (CPF/CNPJ/cartão validados por dígito verificador). Defina `GUARD_SALT` (secreto) no `.env`: o valor padrão é público.
+- **Limites honestos:** a detecção por padrões é uma peneira (paráfrase, outros idiomas e ofuscação passam; o red team registra isso). O que contém o dano são as camadas estruturais. Os "modelos vulneráveis" do red team são simulados — não provam a resistência de um modelo real.
 
 ## Acompanhe o projeto
 
