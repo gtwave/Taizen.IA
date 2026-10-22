@@ -20,6 +20,7 @@ from src.committee.brains import LLMBrain, RulesBrain
 from src.committee.config import ANALYST_MODEL, MANAGER_MODEL, PORTFOLIOS_DIR, PROFILES, default_universe
 from src.committee.graph import Deps, build_graph
 from src.committee.market import load_universe
+from src.guardrails.policy import Guard, GuardConfig
 from src.observability import pricing
 from src.observability.cache import ExactCache
 from src.observability.langchain_hook import TracingCallbackHandler
@@ -28,19 +29,25 @@ from src.observability.tracing import JsonlSink, MemorySink, configure, get_trac
 from src.tools.stock_quote import get_stock_quote
 
 
-def make_news_fn(enabled: bool, days: int = 14, k: int = 2):
+def make_news_fn(enabled: bool, days: int = 14, k: int = 2, guard=None):
+    """Manchetes do índice RAG para o dossiê. São texto de terceiros: com `guard`, cada título passa pela varredura de
+    injeção (Fase 4) e os suspeitos são postos em quarentena antes de chegar a qualquer LLM do comitê."""
     if not enabled:
         return lambda ticker: []
     from src.tools.news_search import search_news  # carrega o modelo de embeddings sob demanda
 
     def news(ticker: str) -> list[dict]:
         res = search_news(f"notícias recentes sobre {ticker}", ticker=ticker, days=days, k=k)
-        return [{"titulo": r["titulo"], "fonte": r["fonte"], "data": r["data"]} for r in res["resultados"]]
+        items = [{"titulo": r["titulo"], "fonte": r["fonte"], "data": r["data"]} for r in res["resultados"]]
+        if guard is not None and guard.enabled:
+            safe = guard.guard_tool_result({"manchetes": items}, f"news:{ticker}")
+            items = safe.get("manchetes", [])
+        return items
 
     return news
 
 
-def make_brain(kind: str, cache: ExactCache | None = None):
+def make_brain(kind: str, cache: ExactCache | None = None, guard=None):
     if kind == "rules":
         return RulesBrain()
     from dotenv import load_dotenv
@@ -53,7 +60,7 @@ def make_brain(kind: str, cache: ExactCache | None = None):
         print(f"[orçamento] atenção: R$ {status.spent_brl:.2f} gastos de R$ {status.budget_brl:.2f} (projeção R$ {status.projected_brl:.2f})")
     analyst = ChatAnthropic(model=ANALYST_MODEL, max_tokens=1500, callbacks=[TracingCallbackHandler(role="analista")])
     manager = ChatAnthropic(model=MANAGER_MODEL, max_tokens=1500, callbacks=[TracingCallbackHandler(role="gestor")])
-    return LLMBrain(analyst, manager, cache=cache)
+    return LLMBrain(analyst, manager, cache=cache, guard=guard)
 
 
 def print_report(rep: dict, log=print) -> None:
@@ -71,7 +78,7 @@ def print_report(rep: dict, log=print) -> None:
 
 
 def run(profile: str, brain: str = "rules", universe: list[str] | None = None, news: bool = False, save: bool = True, log=print,
-        trace: bool = True, cache: bool = False, brain_obj=None) -> dict:
+        trace: bool = True, cache: bool = False, brain_obj=None, guard: Guard | None = None) -> dict:
     universe = universe or default_universe()
     log(f"Perfil: {profile} | cérebro: {brain} | universo: {', '.join(universe)}")
     memory = MemorySink()
@@ -80,8 +87,8 @@ def run(profile: str, brain: str = "rules", universe: list[str] | None = None, n
     deps = Deps(
         load_series=lambda tickers: load_universe(tickers, "5y", log=log),
         quote=get_stock_quote,
-        news=make_news_fn(news),
-        brain=brain_obj or make_brain(brain, exact),
+        news=make_news_fn(news, guard=guard),
+        brain=brain_obj or make_brain(brain, exact, guard),
     )
     graph = build_graph(deps)
     final = None
@@ -119,5 +126,7 @@ if __name__ == "__main__":
     ap.add_argument("--no-save", action="store_true")
     ap.add_argument("--no-trace", action="store_true", help="não grava traces em disco")
     ap.add_argument("--cache", action="store_true", help="cache exato das respostas validadas do LLM (só vale com --brain llm)")
+    ap.add_argument("--guards", default="enforce", choices=["enforce", "monitor", "off"], help="guardrails de segurança (Fase 4)")
     a = ap.parse_args()
-    run(a.profile, a.brain, a.tickers.split(",") if a.tickers else None, a.news, not a.no_save, trace=not a.no_trace, cache=a.cache)
+    run(a.profile, a.brain, a.tickers.split(",") if a.tickers else None, a.news, not a.no_save, trace=not a.no_trace, cache=a.cache,
+        guard=Guard(GuardConfig(mode=a.guards)))

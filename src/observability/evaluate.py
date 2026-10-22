@@ -54,7 +54,7 @@ def check_committee(final: dict, profile_name: str) -> list[Check]:
 _NUM = re.compile(r"(?<![\w.,])(\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)(?![\w])")
 _DATE = re.compile(r"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b|\b\d{4}-\d{2}-\d{2}\b")
 _CITE = re.compile(r"\[(\d+)\]")
-ADVICE = re.compile(r"\b(compre|comprar|venda|vender|recomendo|recomendamos|vale a pena comprar|oportunidade de compra)\b", re.I)
+from src.guardrails.output import ADVICE  # noqa: E402  (mesma regra do guardrail de saída)
 
 
 def _candidates(token: str) -> list[tuple[float, int]]:
