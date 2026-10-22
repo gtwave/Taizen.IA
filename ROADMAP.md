@@ -35,7 +35,8 @@ Cada fase entrega três coisas: (1) incremento funcional no sistema, (2) materia
 ## Fase 4 — Governança & Segurança (Dias 26-29 · Dev 10h · Estudo 8h)
 **Skills:** Guardrails, defesa contra Prompt Injection, Data Privacy & PII Masking.
 **Entregável funcional:** camada de guardrails nas entradas/saídas dos agentes e no pipeline RAG (validação de output, filtro de prompt injection, mascaramento de dados sensíveis se houver).
-**Stack:** Guardrails AI ou implementação própria + regras.
+**Stack:** implementação própria (`src/guardrails/`: regras com peso, normalização Unicode, spotlighting, máscara de PII com dígito verificador, política enforce/monitor/off, auditoria sem conteúdo) + red team offline; Guardrails AI estudado, não adotado.
+**Status:** implementada na branch `fase-04` (guardrails de entrada, ferramentas e saída; red team com 8 ataques; 42 testes novos; zero chamadas pagas).
 
 ## Fase 5 — Fine-Tuning & SLM (Dias 30-36 · Dev 14h · Estudo 12h)
 **Skills:** Fine-Tuning, PEFT/LoRA, Small Language Models. RLHF é tratado só teoricamente (custo de prática real é proibitivo no orçamento disponível).

@@ -5,7 +5,8 @@ resistência vem das camadas de código, não da boa vontade do modelo. Cada cen
 diferentes (nenhuma, só entrada/ferramenta, só saída, completa), para medir o que cada camada realmente contribui.
 
 Uso (portão de segurança, sai com código 1 se a defesa completa falhar em algum cenário esperado):
-    python -m src.guardrails.redteam
+    python -m src.guardrails.redteam            # matriz de ataques x defesas
+    python -m src.guardrails.redteam --audit    # + grava as decisões da defesa completa em guard_audit.jsonl
 """
 
 import json
@@ -36,8 +37,11 @@ CONFIGS = {
 }
 
 
+AUDIT_PATH = None  # com --audit, as decisões da defesa completa são gravadas na trilha de auditoria padrão
+
+
 def make_guard(name: str) -> Guard:
-    return Guard(CONFIGS[name], audit_path=None)
+    return Guard(CONFIGS[name], audit_path=AUDIT_PATH if name == "completa" else None)
 
 
 # ----------------------------------------------------------------------------- modelos vulneráveis
@@ -252,6 +256,10 @@ def format_matrix(result: dict) -> str:
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
+    if "--audit" in sys.argv:
+        from src.guardrails.policy import AUDIT_FILE
+
+        AUDIT_PATH = AUDIT_FILE
     res = run_redteam()
     print(format_matrix(res))
     for r in res["rows"]:

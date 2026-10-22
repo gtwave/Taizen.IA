@@ -32,6 +32,13 @@ Código do projeto, evoluindo fase a fase (ver `../ROADMAP.md`).
 | `observability/report.py` | 3 | Painel de CLI: latência, tokens, custo, erros, cache e orçamento |
 | `observability/evaluate.py` | 3 | Invariantes do comitê, grounding de respostas, LLM-as-judge e portão de regressão |
 | `observability/golden.py` | 3 | Cenários dourados e modelos de chat simulados (`ScriptedChat`, `SimChat`) |
+| `guardrails/pii.py` | 4 | Detecção e máscara de CPF/CNPJ/cartão (com dígito verificador), e-mail, telefone e segredos; achados sem o valor |
+| `guardrails/injection.py` | 4 | Varredura de prompt injection (regras, Unicode, base64), saneamento e spotlighting com id aleatório |
+| `guardrails/output.py` | 4 | Verificações de saída: links não autorizados, imagens com parâmetros, segredos, PII, recomendação |
+| `guardrails/policy.py` | 4 | `Guard`: entrada, ferramenta e saída; modos enforce/monitor/off; auditoria sem conteúdo; spans `guard` |
+| `guardrails/redteam.py` | 4 | Red team offline com modelos vulneráveis simulados; matriz de ataques x defesas e portão de CI |
+| `guardrails/corpus.py` | 4 | Corpora de avaliação (injeção e PII) e métricas, com lacunas declaradas |
+| `guardrails/report.py` | 4 | Painel de auditoria dos guardrails |
 
 Convenção planejada para as próximas fases:
 - `src/api/` — camada de API exposta pelo backend (deploy na VPS)

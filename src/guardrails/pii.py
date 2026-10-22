@@ -64,7 +64,8 @@ PATTERNS: list[tuple[str, int, re.Pattern, object]] = [
     ("CARTAO", 1, re.compile(r"(?<![\d.+])(?:\d[ \-]?){12,18}\d(?!\d|\.\d)"), lambda s: luhn(_ONLY_DIGITS.sub("", s))),
     ("CPF", 2, re.compile(r"(?<![\d.\-/])\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?![\d\-/]|\.\d)"), lambda s: valid_cpf(_ONLY_DIGITS.sub("", s))),
     ("CNPJ", 3, re.compile(r"(?<![\d.\-/])\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}(?![\d\-/]|\.\d)"), lambda s: valid_cnpj(_ONLY_DIGITS.sub("", s))),
-    ("EMAIL", 4, re.compile(r"(?i)\b[a-z0-9._%+\-]+@[a-z0-9\-]+(?:\.[a-z0-9\-]+)*\.[a-z]{2,}\b"), None),
+    # tamanhos limitados (RFC 5321: parte local ≤ 64, rótulo ≤ 63): sem isso, texto hostil como "1.1.1…" torna a busca quadrática (ReDoS)
+    ("EMAIL", 4, re.compile(r"(?i)\b[a-z0-9._%+\-]{1,64}@[a-z0-9\-]{1,63}(?:\.[a-z0-9\-]{1,63}){0,5}\.[a-z]{2,24}\b"), None),
     ("TELEFONE", 5, re.compile(r"(?<![\d.])(?:\+55[ \-]?)?\(?[1-9]\d\)?[ \-]?9\d{4}[ \-]?\d{4}(?!\d|\.\d)"), None),
     ("TELEFONE", 5, re.compile(r"(?<![\d.])(?:\+55[ \-]?)?\([1-9]\d\)[ \-]?[2-5]\d{3}[ \-]?\d{4}(?!\d|\.\d)"), None),
 ]
