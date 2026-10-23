@@ -39,6 +39,16 @@ Código do projeto, evoluindo fase a fase (ver `../ROADMAP.md`).
 | `guardrails/redteam.py` | 4 | Red team offline com modelos vulneráveis simulados; matriz de ataques x defesas e portão de CI |
 | `guardrails/corpus.py` | 4 | Corpora de avaliação (injeção e PII) e métricas, com lacunas declaradas |
 | `guardrails/report.py` | 4 | Painel de auditoria dos guardrails |
+| `finetune/labeling.py` | 5 | Guia de rotulagem e rótulos prata do acervo (índices → positivo/negativo/neutro) |
+| `finetune/data.py` | 5 | Texto de entrada, agrupamento de quase-duplicatas e divisão treino/validação/teste por grupos |
+| `finetune/baselines.py` | 5 | Maioria, léxico e TF-IDF + regressão logística |
+| `finetune/metrics.py` | 5 | Matriz de confusão, F1 macro, bootstrap e comparação pareada |
+| `finetune/llm.py` | 5 | Prompt de chat, logits restritos aos 3 rótulos, carga do modelo e do adaptador LoRA |
+| `finetune/train_lora.py` | 5 | Laço de treino LoRA em CPU (perda ponderada, acúmulo de gradiente, melhor época pela validação) |
+| `finetune/evaluate_models.py` | 5 | Comparação de todos os sistemas no teste, com IC 95% e testes pareados |
+| `finetune/robustness.py` | 5 | Robustez do classificador a prompt injection (taxa de virada) |
+| `finetune/export.py` | 5 | Mesclar LoRA, quantizar int8 e gerar o Modelfile do Ollama |
+| `tools/sentiment.py` | 5 | Ferramenta de sentimento local (backends lora/tfidf/léxico) com spans de custo zero |
 
 Convenção planejada para as próximas fases:
 - `src/api/` — camada de API exposta pelo backend (deploy na VPS)

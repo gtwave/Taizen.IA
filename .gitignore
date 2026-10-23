@@ -29,3 +29,8 @@ social/
 
 # Experimentos locais de indexação (Fase 1)
 data/experiments/
+
+# Fase 5: dados de treino (rótulos e cópias de notícias, que pertencem aos veículos) e modelos treinados
+data/finetune/
+models/
+*.safetensors
