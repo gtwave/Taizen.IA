@@ -29,7 +29,7 @@ from src.observability.tracing import JsonlSink, MemorySink, configure, get_trac
 from src.tools.stock_quote import get_stock_quote
 
 
-def make_news_fn(enabled: bool, days: int = 14, k: int = 2, guard=None):
+def make_news_fn(enabled: bool, days: int = 14, k: int = 2, guard=None, sentiment_fn=None):
     """Manchetes do índice RAG para o dossiê. São texto de terceiros: com `guard`, cada título passa pela varredura de
     injeção (Fase 4) e os suspeitos são postos em quarentena antes de chegar a qualquer LLM do comitê."""
     if not enabled:
@@ -42,9 +42,22 @@ def make_news_fn(enabled: bool, days: int = 14, k: int = 2, guard=None):
         if guard is not None and guard.enabled:
             safe = guard.guard_tool_result({"manchetes": items}, f"news:{ticker}")
             items = safe.get("manchetes", [])
+        if sentiment_fn is not None and items:  # Fase 5: tom de cada manchete, por um modelo local (sem API paga)
+            for it, tone in zip(items, sentiment_fn([it["titulo"] for it in items])):
+                it["tom"] = tone
         return items
 
     return news
+
+
+def make_sentiment_fn(backend: str | None):
+    """Função que devolve o tom de uma lista de manchetes usando o classificador LOCAL da Fase 5 (ou None se desligado)."""
+    if not backend:
+        return None
+    from src.tools.sentiment import get_classifier
+
+    clf = get_classifier(backend)
+    return lambda texts: [r["label"] for r in clf.predict(texts)]
 
 
 def make_brain(kind: str, cache: ExactCache | None = None, guard=None):
@@ -78,7 +91,7 @@ def print_report(rep: dict, log=print) -> None:
 
 
 def run(profile: str, brain: str = "rules", universe: list[str] | None = None, news: bool = False, save: bool = True, log=print,
-        trace: bool = True, cache: bool = False, brain_obj=None, guard: Guard | None = None) -> dict:
+        trace: bool = True, cache: bool = False, brain_obj=None, guard: Guard | None = None, sentiment: str | None = None) -> dict:
     universe = universe or default_universe()
     log(f"Perfil: {profile} | cérebro: {brain} | universo: {', '.join(universe)}")
     memory = MemorySink()
@@ -87,7 +100,7 @@ def run(profile: str, brain: str = "rules", universe: list[str] | None = None, n
     deps = Deps(
         load_series=lambda tickers: load_universe(tickers, "5y", log=log),
         quote=get_stock_quote,
-        news=make_news_fn(news, guard=guard),
+        news=make_news_fn(news, guard=guard, sentiment_fn=make_sentiment_fn(sentiment)),
         brain=brain_obj or make_brain(brain, exact, guard),
     )
     graph = build_graph(deps)
@@ -123,10 +136,11 @@ if __name__ == "__main__":
     ap.add_argument("--brain", default="rules", choices=["rules", "llm"])
     ap.add_argument("--tickers", help="lista separada por vírgula (padrão: universo gratuito, ou o ampliado com BRAPI_TOKEN)")
     ap.add_argument("--news", action="store_true", help="inclui manchetes recuperadas do índice RAG (local)")
+    ap.add_argument("--sentiment", nargs="?", const="auto", choices=["auto", "lora", "tfidf", "lexicon"], help="acrescenta o tom de cada manchete (modelo local da Fase 5)")
     ap.add_argument("--no-save", action="store_true")
     ap.add_argument("--no-trace", action="store_true", help="não grava traces em disco")
     ap.add_argument("--cache", action="store_true", help="cache exato das respostas validadas do LLM (só vale com --brain llm)")
     ap.add_argument("--guards", default="enforce", choices=["enforce", "monitor", "off"], help="guardrails de segurança (Fase 4)")
     a = ap.parse_args()
     run(a.profile, a.brain, a.tickers.split(",") if a.tickers else None, a.news, not a.no_save, trace=not a.no_trace, cache=a.cache,
-        guard=Guard(GuardConfig(mode=a.guards)))
+        guard=Guard(GuardConfig(mode=a.guards)), sentiment=a.sentiment)

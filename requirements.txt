@@ -17,3 +17,8 @@ beautifulsoup4>=4.12
 
 # Fase 2 — comitê de agentes (numpy já vem como dependência, mas é usado diretamente)
 numpy>=1.26
+
+# Fase 5 — fine-tuning de SLM com LoRA em CPU (torch/transformers já vêm do sentence-transformers)
+peft>=0.13
+scikit-learn>=1.4
+huggingface_hub>=0.25

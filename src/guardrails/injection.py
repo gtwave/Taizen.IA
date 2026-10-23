@@ -37,6 +37,9 @@ _r("override", "a_partir_de_agora", 1.0, r"\b(?:a\s+partir\s+de\s+agora|from\s+n
 _r("override", "nova_persona", 3, r"\b(?:voc[êe]\s+(?:agora\s+)?(?:é|e|deve\s+ser|vai\s+ser)\s+um|you\s+are\s+now|act\s+as|finja\s+(?:ser|que))\b")
 # marcadores de papel/formatação de prompt
 _r("role_marker", "linha_system", 3, r"^\s*(?:system|assistant|developer)\s*:", re.IGNORECASE | re.MULTILINE)
+# o marcador também vale no meio do texto, depois de pontuação (a injeção costuma ser ANEXADA ao fim de um texto legítimo — achado da Fase 5)
+_r("role_marker", "system_apos_pontuacao", 3, r"[.!?;:)\]]\s+(?:system|assistant|developer)\s*:\s*\S", re.IGNORECASE)
+_r("role_marker", "system_maiusculo", 3, r"(?:^|\s)(?:SYSTEM|ASSISTANT|DEVELOPER)\s*:\s*\S", 0)  # em maiúsculas é marcador de papel mesmo sem pontuação antes (texto truncado)
 _r("role_marker", "linha_sistema_pt", 2, r"^\s*(?:sistema|assistente|desenvolvedor)\s*:", re.IGNORECASE | re.MULTILINE)
 _r("role_marker", "tokens_especiais", 3, r"<\|?(?:system|im_start|im_end|endoftext)\|?>|\[/?INST\]|<</?SYS>>|</?(?:system|instructions?)>")
 # extração de prompt

@@ -50,6 +50,7 @@ Discussão e mudanças de decisão acontecem via issues/PRs — proponha alterna
 │   ├── committee/   Fase 2 — comitê multiagente em LangGraph: dados, risco, gestor, validador, backtest
 │   ├── observability/ Fase 3 — tracing, custo e orçamento, caches, avaliação e portão de regressão
 │   ├── guardrails/  Fase 4 — PII, prompt injection, guardrails de saída, política, auditoria e red team
+│   ├── finetune/    Fase 5 — rótulos, divisão sem vazamento, linhas de base, LoRA em CPU, avaliação com IC, quantização
 │   └── tools/       ferramentas expostas ao agente (get_stock_quote, search_news)
 ├── tests/           testes sem rede e sem API paga (mocks e embeddings falsos)
 ├── infra/           docker-compose e configs de deploy na VPS
@@ -70,7 +71,7 @@ python -m src.rag.index                               # chunking + embeddings lo
 python -m src.rag.search "juros sobre capital próprio do Santander"   # busca híbrida, sem LLM
 python src/agent_rag.py "O que saiu de notícia sobre a Vale e como está a cotação?"   # usa a API paga
 
-python -m unittest discover -s tests -t .             # 130+ testes, sem rede e sem custo
+python -m unittest discover -s tests -t .             # 150+ testes, sem rede e sem custo
 ```
 
 ### Comitê de carteira (Fase 2)
@@ -112,6 +113,22 @@ python -m src.committee.run --guards=enforce          # manchetes do RAG em quar
 - **Princípio:** tudo que entra de fora (perguntas, notícias, saídas de ferramentas, texto gerado por outro agente) é **dado**; só o código decide. Camadas: varredura/quarentena → aviso no prompt → guardrail de saída → validador da carteira → limites estruturais.
 - **Privacidade:** CPF, CNPJ (opcional), cartão, e-mail, telefone e segredos são mascarados antes de chegar ao LLM, ao cache e aos traces (CPF/CNPJ/cartão validados por dígito verificador). Defina `GUARD_SALT` (secreto) no `.env`: o valor padrão é público.
 - **Limites honestos:** a detecção por padrões é uma peneira (paráfrase, outros idiomas e ofuscação passam; o red team registra isso). O que contém o dano são as camadas estruturais. Os "modelos vulneráveis" do red team são simulados — não provam a resistência de um modelo real.
+
+### Fine-tuning de um SLM (Fase 5)
+
+```bash
+python -m src.finetune.labeling                       # grava data/finetune/labels.jsonl (rótulos do acervo; ver ressalva abaixo)
+python -m src.finetune.train_lora --limit 12 --epochs 1   # teste de fumaça (<1 min)
+python -m src.finetune.train_lora --epochs 3          # LoRA em CPU no Qwen2.5-0.5B-Instruct (~1 h; baixa ~1 GB do Hugging Face)
+python -m src.finetune.evaluate_models --quant        # linhas de base x SLM zero-shot x LoRA x int8, com IC 95% por bootstrap
+python -m src.finetune.robustness                     # taxa de virada sob instruções escondidas no texto (elo com a Fase 4)
+python -m src.finetune.export                         # mescla o adaptador e gera o Modelfile do Ollama (não executado)
+python -m src.committee.run --news --sentiment        # tom de cada manchete pelo modelo local (backend: lora > tfidf > léxico)
+```
+
+- **Tarefa:** classificar o tom (positivo/negativo/neutro) de notícias financeiras em português. Modelo: `Qwen/Qwen2.5-0.5B-Instruct` (Apache-2.0) + LoRA (≈ 1,75% dos parâmetros, adaptador de dezenas de MB).
+- **Ressalva dos dados:** os rótulos (`src/finetune/labeling.py`) são **rótulos prata** de um único anotador (o assistente de IA da sessão, sem API paga) para o acervo RSS coletado em 23/10/2026. O **texto das notícias não é redistribuído** (pertence aos veículos): para reproduzir, colete o seu acervo (`python -m src.rag.ingest`) e rotule-o com o guia do módulo. As métricas medem concordância com esse anotador.
+- **Avaliação honesta:** divisão por grupos de quase-duplicatas (sem vazamento), linhas de base (maioria, léxico, TF-IDF + regressão logística), intervalos bootstrap e comparação pareada. Com 91 notícias de teste, só diferenças grandes são detectáveis.
 
 ## Acompanhe o projeto
 

@@ -42,6 +42,7 @@ Cada fase entrega três coisas: (1) incremento funcional no sistema, (2) materia
 **Skills:** Fine-Tuning, PEFT/LoRA, Small Language Models. RLHF é tratado só teoricamente (custo de prática real é proibitivo no orçamento disponível).
 **Entregável funcional:** um SLM (ex: Llama 3.2 1B/3B ou Phi-3-mini) fine-tunado via LoRA para uma tarefa específica (ex: classificar sentimento de notícias financeiras em PT-BR), treinado em GPU alugada por poucas horas ou Google Colab (camada gratuita) para caber no orçamento de R$50/mês.
 **Stack:** Hugging Face `peft`/`transformers`, Ollama para servir o modelo final localmente.
+**Status:** implementada na branch `fase-05` (Qwen2.5-0.5B-Instruct + LoRA treinado em CPU, ~54 min, sem GPU, para classificar o tom de notícias financeiras em PT-BR; rótulos prata de um único anotador; divisão sem vazamento; linhas de base, ICs bootstrap, robustez a injeção, int8 por camada, ferramenta `--sentiment` no comitê; zero chamadas pagas). Resultado honesto: o LoRA resgata o SLM (F1 macro 0,23 → 0,65), mas **não se distingue** de léxico/TF-IDF com 91 notícias de teste, e no volume atual a API sai por < R$ 1/mês — o SLM vale por privacidade, offline e aprendizado. **Pendente (ver `docs/fase-05-fine-tuning-slm/TODO.md`):** revisão de rótulos (kappa), mais sementes, Ollama (Modelfile gerado, não executado), modelo maior em GPU gratuita (Colab), teste temporal.
 
 ## Fase 6 — Deploy Final, Consolidação & Portfólio (Dias 37-45 · Dev 10h · Estudo 4h)
 **Skills:** consolidação de todos os tópicos anteriores, deploy via Docker.
